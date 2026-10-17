@@ -189,6 +189,9 @@ export function AgentPanel({
         onImagesChange={setImages}
         mode={mode}
         onModeChange={setMode}
+        models={provider?.models ?? []}
+        modelId={model ? String(model.id) : ""}
+        onModelChange={onModelChange}
         effort={effort}
         onEffortChange={setEffort}
         effortOptions={EFFORT_LEVELS}

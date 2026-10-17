@@ -14,6 +14,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
   AcpClient,
+  type AcpContentBlock,
   type AcpPermissionRequest,
   type AcpSessionUpdate,
 } from "./acpClient.js";
@@ -81,16 +82,27 @@ export class AcpProvider implements ChatProvider {
     const client = await this.ensureClient();
     const sessionId = await this.ensureSession(client);
 
-    // ACP sessions keep their own history, so relay only the newest user text.
+    // ACP sessions keep their own history, so relay only the newest user turn —
+    // but relay *all* of it: images must reach the agent, not just the text.
     const lastUser = [...request.messages].reverse().find((message) => message.role === "user");
-    const promptText = lastUser
-      ? lastUser.content
-          .filter((part): part is { type: "text"; text: string } => part.type === "text")
-          .map((part) => part.text)
-          .join("\n")
-      : "";
+    const content: AcpContentBlock[] = [];
+    if (lastUser) {
+      for (const part of lastUser.content) {
+        if (part.type === "text" && part.text.trim().length > 0) {
+          content.push({ type: "text", text: part.text });
+          continue;
+        }
+        if (part.type === "image") {
+          content.push({
+            type: "image",
+            data: part.dataBase64,
+            mimeType: part.mediaType,
+          });
+        }
+      }
+    }
 
-    if (!promptText.trim()) {
+    if (content.length === 0) {
       throw new ProviderError({
         kind: "invalid_request",
         provider: this.id,
@@ -106,7 +118,7 @@ export class AcpProvider implements ChatProvider {
     );
 
     const completion = client
-      .prompt(sessionId, promptText, {
+      .prompt(sessionId, content, {
         onUpdate: (update) => {
           for (const event of mapUpdate(update)) queue.push(event);
         },
@@ -235,9 +247,11 @@ function defaultModel(provider: ProviderId, name: string): ModelInfo {
     id: ModelId.make(DEFAULT_MODEL_ID),
     name: `${name} (agent default)`,
     provider,
-    contextWindow: 200_000,
+    // No `contextWindow`: the agent owns the model, so we do not know its limit
+    // and will not invent one. The UI omits the badge rather than lying.
     supportsTools: true,
-    supportsImages: false,
+    // Images are forwarded to the agent as ACP image content blocks.
+    supportsImages: true,
     supportsThinking: true,
     supportsStreaming: true,
   };

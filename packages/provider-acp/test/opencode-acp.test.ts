@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import zlib from "node:zlib";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -58,6 +59,51 @@ const userMessage = (text: string): ChatMessage => ({
   role: "user",
   content: [{ type: "text", text }],
 });
+
+/**
+ * A real 16x16 PNG. A 1x1 is rejected by OpenCode's image decoder as
+ * undecodable, which is a trap: it looks like a schema problem when it is only
+ * a degenerate image.
+ */
+function redPngBase64(): string {
+  const width = 16;
+  const height = 16;
+  const raw = Buffer.alloc((width * 3 + 1) * height);
+  for (let y = 0; y < height; y += 1) {
+    raw[y * (width * 3 + 1)] = 0;
+    for (let x = 0; x < width; x += 1) {
+      const at = y * (width * 3 + 1) + 1 + x * 3;
+      raw[at] = 0xff;
+    }
+  }
+  const crc32 = (buf: Buffer): number => {
+    let crc = 0xffffffff;
+    for (const byte of buf) {
+      crc ^= byte;
+      for (let i = 0; i < 8; i += 1) crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+    }
+    return (crc ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, "latin1"), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", zlib.deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]).toString("base64");
+}
 
 describe("OpenCode over ACP", () => {
   it.skipIf(!available)(
@@ -220,6 +266,64 @@ describe("OpenCode over ACP", () => {
       expect(path.basename(edits[0]!.path)).toBe("notes.txt");
       expect(edits[0]!.oldString).toBe("alpha");
       expect(edits[0]!.newString).toContain("beta");
+    },
+    240_000,
+  );
+
+  /**
+   * Images are forwarded to the agent as ACP image content blocks. This checks
+   * the agent accepts them rather than rejecting the prompt, which is what
+   * "images are supported" actually has to mean.
+   */
+  it.skipIf(!available)(
+    "forwards an image to the agent",
+    async () => {
+      const cwd = workspace();
+      const factory = makeAcpFactory({ id: "opencode-acp", name: "OpenCode (agent)" });
+      const ctx: ProviderContext = { env: {}, fetch: globalThis.fetch, cwd };
+      const provider = factory.create({ type: "acp", command: "opencode", args: ["acp"] }, ctx);
+      expect(provider).not.toBeNull();
+
+      // A real 16x16 PNG — a 1x1 is rejected by OpenCode's decoder, which looks
+      // like a schema problem but is not.
+      const onePixelPng = redPngBase64();
+
+      const events: ChatStreamEvent[] = [];
+      try {
+        for await (const event of provider!.stream({
+          provider: "opencode-acp",
+          model: "default",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "What colour is this 1x1 image? One word." },
+                { type: "image", mediaType: "image/png", dataBase64: onePixelPng },
+              ],
+            },
+          ],
+        })) {
+          events.push(event);
+        }
+      } finally {
+        await provider!.dispose();
+      }
+
+      const text = events
+        .filter((event): event is { type: "text_delta"; text: string } => event.type === "text_delta")
+        .map((event) => event.text)
+        .join("");
+      const notices = events
+        .filter((event): event is { type: "notice"; text: string } => event.type === "notice")
+        .map((event) => event.text);
+
+      console.log(`image prompt text: ${JSON.stringify(text.slice(0, 120))}`);
+      console.log(`image prompt notices: ${JSON.stringify(notices.slice(0, 3))}`);
+
+      // The prompt must not be rejected outright.
+      const rejected = notices.some((notice) => /invalid|unsupported|error/i.test(notice));
+      expect(rejected).toBe(false);
+      expect(events.at(-1)?.type).toBe("stop");
     },
     240_000,
   );

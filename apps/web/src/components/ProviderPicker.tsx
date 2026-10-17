@@ -144,7 +144,9 @@ export function ProviderPicker({
                   {chip.label}
                 </span>
               ))}
-              <span className="cap is-plain">{`${formatCount(model.contextWindow)} token context`}</span>
+              {model.contextWindow === undefined ? null : (
+                <span className="cap is-plain">{`${formatCount(model.contextWindow)} token context`}</span>
+              )}
               {model.maxOutputTokens === undefined ? null : (
                 <span className="cap is-plain">{`${formatCount(model.maxOutputTokens)} max out`}</span>
               )}

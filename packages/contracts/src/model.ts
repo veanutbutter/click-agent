@@ -25,7 +25,12 @@ export interface ModelInfo {
   name: string;
   provider: ProviderId;
   /** Total context window in tokens. */
-  contextWindow: number;
+  /**
+   * How much context the model accepts. Optional on purpose: for an external
+   * agent the *agent* owns the model, so we often genuinely do not know, and
+   * inventing a number is worse than saying nothing.
+   */
+  contextWindow?: number;
   maxOutputTokens?: number;
   supportsTools: boolean;
   supportsImages: boolean;

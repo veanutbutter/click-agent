@@ -255,14 +255,18 @@ export class AcpClient {
 
   async prompt(
     sessionId: string,
-    text: string,
+    content: AcpContentBlock[] | string,
     handlers: AcpPromptHandlers,
   ): Promise<AcpStopReason> {
     this.updateHandler = handlers.onUpdate;
+    // A string is the common case; anything else is passed through so image
+    // blocks reach the agent rather than being dropped on the floor.
+    const prompt: AcpContentBlock[] =
+      typeof content === "string" ? [{ type: "text", text: content }] : content;
     try {
       const result = await this.conn.request<{ stopReason?: string }>("session/prompt", {
         sessionId,
-        prompt: [{ type: "text", text }],
+        prompt,
       });
       return normalizeStopReason(result?.stopReason);
     } finally {

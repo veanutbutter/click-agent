@@ -934,7 +934,7 @@ kbd {
   align-items: center;
   gap: 8px;
   height: 34px;
-  padding: 0 8px 0 12px;
+  padding: 0 6px;
   border-bottom: 1px solid var(--border-soft);
 }
 
@@ -1007,7 +1007,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 10px 6px;
   border-bottom: 1px solid var(--border-soft);
   background: var(--bg-panel);
 }
@@ -1162,7 +1162,7 @@ input[type="number"].input {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 14px 14px 6px;
+  padding: 14px 6px 6px;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -1592,7 +1592,7 @@ input[type="number"].input {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  padding: 10px 12px 12px;
+  padding: 10px 6px 12px;
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
 }

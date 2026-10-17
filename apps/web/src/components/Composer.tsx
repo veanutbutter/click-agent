@@ -58,6 +58,10 @@ export interface ComposerProps {
   /** Inference mode: `agent`, `plan` or `ask`. */
   mode?: string;
   onModeChange?(mode: string): void;
+  /** Models the selected provider offers. */
+  models?: ModelInfo[];
+  modelId?: string;
+  onModelChange?(modelId: string): void;
   /** Reasoning effort, or "" for the model's default. */
   effort?: string;
   onEffortChange?(effort: string): void;
@@ -82,6 +86,9 @@ export function Composer({
   onImagesChange,
   mode = "agent",
   onModeChange,
+  models = [],
+  modelId = "",
+  onModelChange,
   effort = "",
   onEffortChange,
   effortOptions = [],
@@ -266,6 +273,22 @@ export function Composer({
               <option value="ask">Ask</option>
             </select>
           </label>
+          {models.length > 0 ? (
+            <label className="composer-select">
+              <span className="sr-only">Model</span>
+              <select
+                value={modelId}
+                onChange={(event) => onModelChange?.(event.target.value)}
+                title="Which model to use"
+              >
+                {models.map((entry) => (
+                  <option key={String(entry.id)} value={String(entry.id)}>
+                    {entry.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {effortOptions.length > 0 ? (
             <label className="composer-select">
               <span className="sr-only">Reasoning effort</span>
