@@ -76,6 +76,40 @@ async function run() {
     await controller.reject(created);
     assert.strictEqual(fs.readFileSync(created, "utf8"), "", "new file reverts to empty");
 
+    // --- an edit the agent reported is resolved against the live file --------
+    // The agent reports an edit before its write lands, so `showEdit` has to
+    // work from either reading of the file. This is the exact shape the real
+    // ACP stream sends, and the case that silently produced no review.
+    const reported = path.join(dir, "reported.txt");
+    fs.writeFileSync(reported, "this is a test, try changing it", "utf8");
+    const resolvedFromReport = await controller.showEdit({
+      path: reported,
+      oldString: "this is a test, try changing it",
+      newString: "this is a test, and I changed it",
+    });
+    assert.ok(resolvedFromReport, "an edit reported before its write still reviews");
+    assert.strictEqual(resolvedFromReport.hunks.length, 1);
+    assert.deepStrictEqual(resolvedFromReport.hunks[0].removed, ["this is a test, try changing it"]);
+    assert.deepStrictEqual(resolvedFromReport.hunks[0].added, ["this is a test, and I changed it"]);
+    assert.strictEqual(controller.getPending(reported)?.hunks.length, 1, "the review is pending");
+    await controller.reject(reported);
+    assert.strictEqual(
+      fs.readFileSync(reported, "utf8"),
+      "this is a test, try changing it",
+      "revert restores the pre-edit text",
+    );
+
+    // --- the same edit, once the write has landed ---------------------------
+    fs.writeFileSync(reported, "this is a test, and I changed it", "utf8");
+    const resolvedFromDisk = await controller.showEdit({
+      path: reported,
+      oldString: "this is a test, try changing it",
+      newString: "this is a test, and I changed it",
+    });
+    assert.ok(resolvedFromDisk, "an edit reported after its write reviews too");
+    assert.deepStrictEqual(resolvedFromDisk.hunks[0].added, ["this is a test, and I changed it"]);
+    controller.accept(reported);
+
     // --- decorations actually apply to a live editor ------------------------
     const decorated = path.join(dir, "decorated.txt");
     const shown = await showReview(controller, decorated, "alpha\n", "alpha\nbeta\n");

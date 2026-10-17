@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { diffLines, isNoop, reconstructBefore, summarize } from "../src/reviewModel.js";
+import { diffLines, isNoop, reconstructBefore, resolveEdit, summarize } from "../src/reviewModel.js";
 describe("diffLines", () => {
   it("reports no hunks for identical text", () => {
     expect(diffLines("alpha\nbeta\n", "alpha\nbeta\n")).toEqual([]);
@@ -63,6 +63,76 @@ describe("isNoop", () => {
 
   it("is false when the text changed", () => {
     expect(isNoop({ path: "a.ts", before: "x", after: "y" })).toBe(false);
+  });
+});
+
+describe("resolveEdit", () => {
+  /**
+   * The real timing, verified against OpenCode's ACP stream: the edit is
+   * announced before the write lands, so the file read at that moment is the
+   * *pre-edit* text. Reversing the substitution cannot work on it, and doing
+   * that silently showed nothing at all.
+   */
+  it("uses the file as 'before' when the write has not landed yet", () => {
+    const resolved = resolveEdit(
+      "this is a test, try changing it",
+      "this is a test, try changing it",
+      "this is a test, and I changed it",
+    );
+    expect(resolved).toEqual({
+      before: "this is a test, try changing it",
+      after: "this is a test, and I changed it",
+    });
+    // …and the pair diffs as the change the agent made.
+    const hunks = diffLines(resolved!.before, resolved!.after);
+    expect(hunks[0]?.removed).toEqual(["this is a test, try changing it"]);
+    expect(hunks[0]?.added).toEqual(["this is a test, and I changed it"]);
+  });
+
+  it("recovers 'before' when the write already landed", () => {
+    expect(
+      resolveEdit("this is a test, and I changed it", "this is a test", "this is a test, and I changed it"),
+    ).toEqual({ before: "this is a test", after: "this is a test, and I changed it" });
+  });
+
+  it("prefers the landed reading when newString still contains oldString", () => {
+    // "alpha" → "alpha\nbeta": both sides are in the text once it lands.
+    expect(resolveEdit("alpha\nbeta\n", "alpha", "alpha\nbeta")).toEqual({
+      before: "alpha\n",
+      after: "alpha\nbeta\n",
+    });
+  });
+
+  it("resolves only the reported occurrence, not a later identical line", () => {
+    expect(resolveEdit("same\nsame\n", "same", "changed")).toEqual({
+      before: "same\nsame\n",
+      after: "changed\nsame\n",
+    });
+  });
+
+  it("treats an unreadable file as a new file being written", () => {
+    expect(resolveEdit(undefined, "", "brand new\n")).toEqual({ before: "", after: "brand new\n" });
+  });
+
+  it("keeps the existing contents as 'before' for a whole-file write", () => {
+    expect(resolveEdit("old contents\n", "", "new contents\n")).toEqual({
+      before: "old contents\n",
+      after: "new contents\n",
+    });
+  });
+
+  it("refuses to guess when a whole-file write has already landed", () => {
+    // The original is gone; showing it as an empty file would let "revert"
+    // destroy the file rather than restore it.
+    expect(resolveEdit("new contents\n", "", "new contents\n")).toBeUndefined();
+  });
+
+  it("has nothing to show when the file matches neither side", () => {
+    expect(resolveEdit("unrelated\n", "alpha", "beta")).toBeUndefined();
+  });
+
+  it("has nothing to show when the edit is a no-op", () => {
+    expect(resolveEdit("same\n", "same", "same")).toBeUndefined();
   });
 });
 

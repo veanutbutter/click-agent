@@ -84,7 +84,10 @@ declare module "vscode" {
     showInputBox(options?: InputBoxOptions): Thenable<string | undefined>;
     showInformationMessage(message: string): Thenable<string | undefined>;
     showErrorMessage(message: string): Thenable<string | undefined>;
-    createOutputChannel(name: string): { appendLine(value: string): void; dispose(): void };
+    createOutputChannel(
+      name: string,
+      options?: { log?: boolean },
+    ): { appendLine(value: string): void; dispose(): void };
     createTextEditorDecorationType(options: DecorationRenderOptions): TextEditorDecorationType;
     createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
     showTextDocument(
@@ -171,6 +174,10 @@ declare module "vscode" {
     fontStyle?: string;
     fontWeight?: string;
     textDecoration?: string;
+    /** CSS shorthand for the space around the attachment text. */
+    margin?: string;
+    width?: string;
+    height?: string;
   }
 
   export interface DecorationRenderOptions {

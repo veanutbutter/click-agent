@@ -21,6 +21,12 @@ export interface ProposedEdit {
   after: string;
 }
 
+/** The two sides of a change, already attributed — see {@link resolveEdit}. */
+export interface ResolvedEdit {
+  before: string;
+  after: string;
+}
+
 export interface Hunk {
   /** 0-based line index in `before` where this hunk begins. */
   beforeStart: number;
@@ -161,9 +167,76 @@ export function isNoop(edit: ProposedEdit): boolean {
  */
 export function reconstructBefore(after: string, oldString: string, newString: string): string {
   if (oldString === newString) return after;
-  const at = after.indexOf(newString);
-  if (at === -1) return after;
-  return after.slice(0, at) + oldString + after.slice(at + newString.length);
+  return replaceFirst(after, newString, oldString);
+}
+
+/** Replace the first occurrence of `needle`, leaving the text alone if absent. */
+export function replaceFirst(text: string, needle: string, replacement: string): string {
+  if (needle.length === 0) return text;
+  const at = text.indexOf(needle);
+  if (at === -1) return text;
+  return text.slice(0, at) + replacement + text.slice(at + needle.length);
+}
+
+/**
+ * Recover the before/after pair for a reported edit, given whatever the file
+ * holds *right now*.
+ *
+ * This exists because of a race, verified against the real agent: OpenCode
+ * announces the edit (`tool_call_update`, status `in_progress`, carrying
+ * `oldString`/`newString`) **before** it writes to disk. So a read of the file
+ * at that moment usually returns the *pre-edit* text, and the naive
+ * "reverse the substitution in the file as it is now" approach fails — the
+ * substitution is not there yet to reverse — which silently showed nothing.
+ *
+ * The report is the ground truth; the file read only supplies the text around
+ * the change. That makes the answer the same either way:
+ *
+ * - the write has landed → the file is `after`, and `before` is recovered by
+ *   reversing the substitution;
+ * - the write has not landed → the file is `before`, and `after` is what the
+ *   substitution will produce (which is exactly what the agent goes on to
+ *   write, since that is the substitution it reported).
+ *
+ * Returns `undefined` when there is nothing showable, and `current` is
+ * `undefined` when the file could not be read (which is how a brand-new file
+ * announces itself).
+ */
+export function resolveEdit(
+  current: string | undefined,
+  oldString: string,
+  newString: string,
+): ResolvedEdit | undefined {
+  if (oldString === newString) return undefined;
+
+  const text = current ?? "";
+
+  // A whole-file write reports no replacement, so the file itself is the only
+  // source of "before": while the write is pending it still holds the pre-write
+  // text, and once the write has landed the original is gone — assuming "" there
+  // would let "revert" empty the file instead of restoring it.
+  if (oldString.length === 0) {
+    if (current === undefined) return { before: "", after: newString };
+    if (text === newString) return undefined;
+    return { before: text, after: newString };
+  }
+
+  // The write has landed: the new text is on disk, so reverse it to get "before".
+  // Checked before the pending reading, because a newString often still contains
+  // oldString ("alpha" → "alpha\nbeta") and this is the reading that recovers
+  // both sides.
+  if (newString.length > 0 && text.includes(newString)) {
+    return { before: reconstructBefore(text, oldString, newString), after: text };
+  }
+
+  // The report beat the write: the file still holds the text being replaced, so
+  // compute the replacement ourselves. It is character-for-character what the
+  // agent is about to write.
+  if (text.includes(oldString)) {
+    return { before: text, after: replaceFirst(text, oldString, newString) };
+  }
+
+  return undefined;
 }
 
 /** A one-line summary for the review control, e.g. "+3 −1". */

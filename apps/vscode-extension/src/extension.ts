@@ -63,8 +63,15 @@ class ClickViewProvider implements vscode.WebviewViewProvider {
     const host = new ClickHost(
       {
         post: (message) => void view.webview.postMessage(message),
-        // Every edit the agent makes is shown in the file for review.
-        onFileEdit: (edit) => void this.review.showEdit(edit),
+        // Every edit the agent makes is shown in the file for review. Failures
+        // are logged rather than swallowed: a review that does not appear must
+        // always leave a trace of why.
+        onFileEdit: (edit) =>
+          void this.review.showEdit(edit).catch((error: unknown) => {
+            this.log.appendLine(
+              `[review] ${edit.path}: failed — ${error instanceof Error ? error.stack ?? error.message : String(error)}`,
+            );
+          }),
       },
       initial,
     );
@@ -183,7 +190,11 @@ function uriForPath(distRoot: vscode.Uri, relative: string): vscode.Uri {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  const log = vscode.window.createOutputChannel("Click Agent");
+  // A *log* channel, not a plain output channel: VS Code writes it to
+  // `logs/<window>/exthost/click-agent/Click Agent.log` whether or not the
+  // Output panel is open, so what the extension did is still readable after the
+  // fact. Chasing "the UI showed nothing" without that is guesswork.
+  const log = vscode.window.createOutputChannel("Click Agent", { log: true });
   const review = new ReviewController(log);
   const provider = new ClickViewProvider(context.extensionUri, log, review);
 
