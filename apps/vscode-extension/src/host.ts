@@ -12,7 +12,7 @@ import {
 } from "@click/bridge";
 import { loadSettings, saveSettings } from "@click/config";
 import type { ClickSettings } from "@click/contracts";
-import { describeProviders, providerContext, runChat } from "@click/runtime";
+import { describeProviders, listProviderModels, providerContext, runChat } from "@click/runtime";
 
 import { formatContext, mergeContext, type ChatContextItem } from "./context.js";
 
@@ -158,9 +158,28 @@ export class ClickHost {
 
   private async listProviders(): Promise<ProviderSummary[]> {
     const settings = withBundledAgent(await loadSettings());
-    return describeProviders(settings, providerContext({ cwd: this.workspaceRoot }))
-      .filter((entry) => ENABLED_PROVIDERS.has(String(entry.descriptor.id)))
-      .map((entry) => ({
+    const entries = describeProviders(settings, providerContext({ cwd: this.workspaceRoot })).filter(
+      (entry) => ENABLED_PROVIDERS.has(String(entry.descriptor.id)),
+    );
+
+    // The descriptor's model list is static — for an ACP agent it is a single
+    // placeholder. Ask the agent itself for its real catalogue so the picker
+    // offers the models the user actually has.
+    const enriched = await Promise.all(
+      entries.map(async (entry) => {
+        const id = String(entry.descriptor.id);
+        const live = await listProviderModels(
+          settings,
+          id,
+          providerContext({ cwd: this.workspaceRoot }),
+        ).catch(() => undefined);
+        return live && live.length > 0
+          ? { ...entry, descriptor: { ...entry.descriptor, models: live } }
+          : entry;
+      }),
+    );
+
+    return enriched.map((entry) => ({
       id: String(entry.descriptor.id),
       name: entry.descriptor.name,
       kind: entry.descriptor.kind,

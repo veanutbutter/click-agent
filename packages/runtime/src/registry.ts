@@ -2,6 +2,7 @@ import {
   ProviderId,
   modelKey,
   type ClickSettings,
+  type ModelInfo,
   type ModelSelection,
   type ProviderDescriptor,
 } from "@click/contracts";
@@ -121,4 +122,31 @@ export function describeProviders(
 
 export function selectionLabel(selection: ModelSelection): string {
   return modelKey(selection);
+}
+
+/**
+ * The live model list for one provider, when it can report one.
+ *
+ * A provider's descriptor carries a static list (or, for an ACP agent, a single
+ * placeholder), but the real catalogue is only known at runtime — for OpenCode
+ * it is every model the agent offers. The provider instance is disposed here
+ * because this is a separate, short-lived build of the registry.
+ */
+export async function listProviderModels(
+  settings: ClickSettings,
+  providerId: string,
+  ctx: ProviderContext = providerContext(),
+): Promise<ModelInfo[] | undefined> {
+  const registry = createProviderRegistry();
+  const { providers } = registry.build(settings, ctx);
+  const provider = providers.find((entry) => String(entry.id) === providerId);
+  if (!provider) return undefined;
+  try {
+    const models = await provider.listModels();
+    return models.length > 0 ? models : undefined;
+  } catch {
+    return undefined;
+  } finally {
+    await provider.dispose().catch(() => undefined);
+  }
 }

@@ -14,11 +14,15 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
   AcpClient,
+  type AcpConfigOption,
   type AcpContentBlock,
   type AcpPermissionRequest,
   type AcpSessionUpdate,
 } from "./acpClient.js";
 import { loadMcpServers } from "./mcpConfig.js";
+
+/** The config option OpenCode exposes its model catalogue under. */
+const MODEL_CONFIG_ID = "model";
 
 const DEFAULT_MODEL_ID = "default";
 
@@ -32,6 +36,8 @@ export class AcpProvider implements ChatProvider {
   readonly descriptor: ProviderDescriptor;
   private client: AcpClient | undefined;
   private sessionId: string | undefined;
+  /** The agent's own options for this session, including the model catalogue. */
+  private configOptions: AcpConfigOption[] = [];
   private permissionPolicy:
     | ((request: AcpPermissionRequest) => Promise<"allow" | "deny">)
     | undefined;
@@ -63,8 +69,51 @@ export class AcpProvider implements ChatProvider {
     this.permissionPolicy = handler;
   }
 
+  /**
+   * The agent's real model catalogue, read from its own config options.
+   *
+   * ACP gives the agent a `select` option (OpenCode uses id `model`) whose
+   * `options` are every model it can run. That is the list the user should see —
+   * the placeholder in the descriptor is only a fallback for an agent that
+   * exposes nothing.
+   */
   async listModels(): Promise<ModelInfo[]> {
-    return this.descriptor.models;
+    try {
+      const client = await this.ensureClient();
+      await this.ensureSession(client);
+      const models = this.modelsFromConfig();
+      return models.length > 0 ? models : this.descriptor.models;
+    } catch {
+      return this.descriptor.models;
+    }
+  }
+
+  private modelsFromConfig(): ModelInfo[] {
+    const option = this.configOptions.find((entry) => entry.id === MODEL_CONFIG_ID);
+    const values = (option?.options ?? []).filter(
+      (entry): entry is { value: string; name?: string } => typeof entry.value === "string",
+    );
+    // Put the agent's current model first, so a UI that defaults to "the first
+    // model" defaults to the one the user configured rather than a free one.
+    const current = typeof option?.currentValue === "string" ? option.currentValue : undefined;
+    const ordered = current
+      ? [...values.filter((entry) => entry.value === current), ...values.filter((entry) => entry.value !== current)]
+      : values;
+    return ordered.map((entry) => ({
+      id: ModelId.make(entry.value),
+      name: entry.name ?? entry.value,
+      provider: this.id,
+      supportsTools: true,
+      supportsImages: true,
+      supportsThinking: true,
+      supportsStreaming: true,
+    }));
+  }
+
+  /** The model the agent is currently set to use, if it says. */
+  currentModelId(): string | undefined {
+    const option = this.configOptions.find((entry) => entry.id === MODEL_CONFIG_ID);
+    return typeof option?.currentValue === "string" ? option.currentValue : undefined;
   }
 
   async check(): Promise<ProviderHealth> {
@@ -81,6 +130,8 @@ export class AcpProvider implements ChatProvider {
   async *stream(request: ChatRequest): AsyncIterable<ChatStreamEvent> {
     const client = await this.ensureClient();
     const sessionId = await this.ensureSession(client);
+    // Honour the model the user picked, before the turn runs.
+    await this.selectModel(client, sessionId, request.model).catch(() => undefined);
 
     // ACP sessions keep their own history, so relay only the newest user turn —
     // but relay *all* of it: images must reach the agent, not just the text.
@@ -174,8 +225,28 @@ export class AcpProvider implements ChatProvider {
     // Servers configured in the editor's own mcp.json are handed to the agent,
     // so its tool loop can use them.
     const mcpServers = await loadMcpServers(this.rootCwd(), this.ctx.env).catch(() => []);
-    this.sessionId = await client.newSession(this.rootCwd(), mcpServers);
+    // The raw result carries the agent's config options, which is where its real
+    // model catalogue lives.
+    const result = await client.newSessionRaw(this.rootCwd(), mcpServers);
+    if (!result?.sessionId) throw new Error("Agent did not return a session id");
+    this.configOptions = result.configOptions ?? [];
+    this.sessionId = result.sessionId;
     return this.sessionId;
+  }
+
+  /**
+   * Point the session at the requested model, if the agent offers a model option
+   * and the choice differs from what it is already using. A model id we do not
+   * recognise is ignored rather than fatal — the agent's own default is a
+   * reasonable answer, and the placeholder id is exactly that case.
+   */
+  private async selectModel(client: AcpClient, sessionId: string, model: string): Promise<void> {
+    if (!model || model === DEFAULT_MODEL_ID) return;
+    const option = this.configOptions.find((entry) => entry.id === MODEL_CONFIG_ID);
+    if (!option) return;
+    if (option.currentValue === model) return;
+    if (!(option.options ?? []).some((entry) => entry.value === model)) return;
+    this.configOptions = await client.setConfigOption(sessionId, MODEL_CONFIG_ID, model);
   }
 
   private rootCwd(): string {

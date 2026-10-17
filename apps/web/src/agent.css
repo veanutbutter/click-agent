@@ -7,6 +7,15 @@ body,
   height: 100%;
 }
 
+/* VS Code's webview stylesheet puts ~20px of padding on the body. This panel is
+   meant to be edge to edge, and the panel's own containers add the gutter they
+   want, so the host's padding has to go. */
+html,
+body {
+  padding: 0 !important;
+  margin: 0;
+}
+
 body {
   overflow: hidden;
 }

@@ -3,6 +3,7 @@ export {
   providerContext,
   resolveProvider,
   describeProviders,
+  listProviderModels,
   selectionLabel,
   ACP_AGENT_PRESETS,
   type ResolvedProvider,

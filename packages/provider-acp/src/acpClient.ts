@@ -60,6 +60,52 @@ export interface AcpSessionUpdate {
   locations?: { path?: string }[];
   /** The tool's own arguments, e.g. an edit's `oldString`/`newString`. */
   rawInput?: Record<string, unknown>;
+  /** Present on session updates that carry the agent's model or mode list. */
+  models?: AcpModelSelection;
+  modes?: AcpModeSelection;
+  [key: string]: unknown;
+}
+
+/** A model the agent offers. The id is what `session/set_model` wants. */
+export interface AcpModelInfo {
+  modelId?: string;
+  id?: string;
+  name?: string;
+  description?: string;
+  [key: string]: unknown;
+}
+
+export interface AcpModelSelection {
+  availableModels?: AcpModelInfo[];
+  currentModelId?: string;
+}
+
+export interface AcpModeSelection {
+  availableModes?: { id?: string; name?: string; description?: string }[];
+  currentModeId?: string;
+}
+
+/** A selectable option the agent exposes, e.g. the model list. */
+export interface AcpConfigOption {
+  id?: string;
+  name?: string;
+  category?: string;
+  type?: string;
+  currentValue?: unknown;
+  options?: { value?: string; name?: string; description?: string }[];
+  [key: string]: unknown;
+}
+
+/**
+ * The `session/new` result. Besides the id it carries the agent's own config
+ * options — including the model catalogue, which is where a real model list
+ * comes from rather than a placeholder.
+ */
+export interface AcpNewSessionResult {
+  sessionId?: string;
+  configOptions?: AcpConfigOption[];
+  models?: AcpModelSelection;
+  modes?: AcpModeSelection;
   [key: string]: unknown;
 }
 
@@ -245,12 +291,36 @@ export class AcpClient {
   }
 
   async newSession(cwd: string, mcpServers: AcpMcpServer[] = []): Promise<string> {
-    const result = await this.conn.request<{ sessionId?: string }>("session/new", {
-      cwd,
-      mcpServers,
-    });
+    const result = await this.newSessionRaw(cwd, mcpServers);
     if (!result?.sessionId) throw new Error("Agent did not return a session id");
     return result.sessionId;
+  }
+
+  /**
+   * The full `session/new` result. Besides the session id it carries the agent's
+   * own `models` and `modes`, which is where a real model list comes from —
+   * OpenCode offers its whole catalogue there, not just the configured default.
+   */
+  async newSessionRaw(cwd: string, mcpServers: AcpMcpServer[] = []): Promise<AcpNewSessionResult> {
+    return this.conn.request<AcpNewSessionResult>("session/new", { cwd, mcpServers });
+  }
+
+  /**
+   * Change one of the agent's own config options — which is how a model is
+   * selected over ACP. OpenCode exposes its whole catalogue as a `select` option
+   * with id `model`, and `session/set_model` does not exist.
+   */
+  async setConfigOption(sessionId: string, configId: string, value: string): Promise<AcpConfigOption[]> {
+    const result = await this.conn.request<{ configOptions?: AcpConfigOption[] }>(
+      "session/set_config_option",
+      { sessionId, configId, value },
+    );
+    return result?.configOptions ?? [];
+  }
+
+  /** Escape hatch for probing the agent's own methods. */
+  async rawRequest(method: string, params: unknown): Promise<unknown> {
+    return this.conn.request(method, params);
   }
 
   async prompt(
