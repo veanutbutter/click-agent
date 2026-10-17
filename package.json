@@ -1,0 +1,32 @@
+{
+  "name": "click",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Click — an open, provider-agnostic AI code editor.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "probe": "tsx packages/click-cli/src/bin.ts probe",
+    "providers": "tsx packages/click-cli/src/bin.ts providers",
+    "agent": "tsx packages/click-cli/src/bin.ts agent",
+    "acp:mock": "tsx packages/provider-acp/test/fixtures/mock-agent.ts",
+    "dev:web": "pnpm --filter @click/web dev",
+    "build:web": "pnpm --filter @click/web build",
+    "dev:desktop": "pnpm --filter @click/desktop dev",
+    "gateway": "tsx apps/gateway/src/bin.ts",
+    "build": "pnpm run build:web",
+    "build:extension": "pnpm --filter click-agent build:all"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

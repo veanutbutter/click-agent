@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+dist-types/
+out/
+release/
+*.tsbuildinfo
+
+# the VS Code copy @vscode/test-electron downloads
+.vscode-test/
+
+# caches
+.vite/
+.turbo/
+.cache/
+coverage/
+
+# local secrets and machine-specific files
+.env
+.env.local
+*.local
+*.log
+
+# editor / OS
+.DS_Store
+Thumbs.db

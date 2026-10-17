@@ -1,0 +1,12 @@
+# Normalise line endings so a Windows checkout and a Linux checkout agree.
+* text=auto eol=lf
+
+# Keep binaries binary.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.svg text
+
+# Lockfiles are generated; keep them out of diffs by default.
+pnpm-lock.yaml -diff

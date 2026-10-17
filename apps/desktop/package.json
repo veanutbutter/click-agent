@@ -1,0 +1,22 @@
+{
+  "name": "@click/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -b",
+    "start": "electron .",
+    "dev": "tsc -b && electron ."
+  },
+  "dependencies": {
+    "@click/agent-core": "workspace:*",
+    "@click/bridge": "workspace:*",
+    "@click/config": "workspace:*",
+    "@click/contracts": "workspace:*",
+    "@click/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

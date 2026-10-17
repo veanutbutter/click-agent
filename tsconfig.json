@@ -1,0 +1,18 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/provider-core" },
+    { "path": "packages/providers" },
+    { "path": "packages/provider-acp" },
+    { "path": "packages/agent-core" },
+    { "path": "packages/config" },
+    { "path": "packages/runtime" },
+    { "path": "packages/bridge" },
+    { "path": "packages/click-cli" },
+    { "path": "apps/desktop" },
+    { "path": "apps/web" },
+    { "path": "apps/gateway" },
+    { "path": "apps/vscode-extension" }
+  ]
+}

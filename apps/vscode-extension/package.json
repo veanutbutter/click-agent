@@ -1,0 +1,117 @@
+{
+  "name": "click-agent",
+  "displayName": "Click Agent",
+  "description": "Provider-agnostic AI agent panel for the Click editor fork.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "click",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:click.agent",
+    "onCommand:click.focusAgent",
+    "onCommand:click.newChat"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "click",
+          "title": "Click",
+          "icon": "media/click.svg"
+        }
+      ]
+    },
+    "views": {
+      "click": [
+        {
+          "id": "click.agent",
+          "name": "Agent",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "click.focusAgent",
+        "title": "Click: Focus agent"
+      },
+      {
+        "command": "click.newChat",
+        "title": "Click: New chat"
+      },
+      {
+        "command": "click.setApiKey",
+        "title": "Click: Set OpenCode Go API Key"
+      },
+      {
+        "command": "click.addToChat",
+        "title": "Click: Add Selection to Chat"
+      },
+      {
+        "command": "click.review.accept",
+        "title": "Click: Keep Edits"
+      },
+      {
+        "command": "click.review.reject",
+        "title": "Click: Revert Edits"
+      },
+      {
+        "command": "click.review.acceptAll",
+        "title": "Click: Keep All Edits"
+      },
+      {
+        "command": "click.review.rejectAll",
+        "title": "Click: Revert All Edits"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "click.addToChat",
+        "key": "ctrl+l",
+        "mac": "cmd+l",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Click Agent",
+      "properties": {
+        "click.agent.openOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the Click agent panel when the editor starts."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "build:webview": "pnpm --filter @click/web build",
+    "build:all": "pnpm build:webview && pnpm build",
+    "test:vscode": "node test/vscode/launch.mjs"
+  },
+  "dependencies": {
+    "@click/agent-core": "workspace:*",
+    "@click/bridge": "workspace:*",
+    "@click/config": "workspace:*",
+    "@click/contracts": "workspace:*",
+    "@click/provider-acp": "workspace:*",
+    "@click/provider-core": "workspace:*",
+    "@click/providers": "workspace:*",
+    "@click/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.2"
+  }
+}

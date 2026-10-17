@@ -1,0 +1,137 @@
+/* Layout for the in-editor agent webview. The host editor owns the file tree,
+   editor and status bar, so this view is simply one full-height agent column. */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+.agent-webview {
+  display: flex;
+  height: 100vh;
+  min-height: 0;
+}
+
+.agent-webview > .agent-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-left: none;
+}
+
+/* --- @ mention picker ------------------------------------------------------ */
+
+.composer {
+  position: relative;
+}
+
+.mention-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface-2, #171a21);
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+}
+
+.mention-item {
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--text-2, #b9c0cd);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-item.active {
+  background: var(--surface-3, #232833);
+  color: var(--text-1, #e6e9f0);
+}
+
+/* --- mode and effort selectors --------------------------------------------- */
+
+.composer-selects {
+  display: flex;
+  gap: 6px;
+}
+
+.composer-select select {
+  appearance: none;
+  padding: 2px 6px;
+  background: var(--surface-3, #232833);
+  color: var(--text-2, #b9c0cd);
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 5px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.composer-select select:hover {
+  color: var(--text-1, #e6e9f0);
+}
+
+/* --- attached images ------------------------------------------------------- */
+
+.attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.attachment-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 3px;
+  background: var(--surface-3, #232833);
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--text-2, #b9c0cd);
+}
+
+.attachment-thumb {
+  width: 22px;
+  height: 22px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.attachment-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-remove {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.attachment-remove:hover {
+  color: var(--text-1, #e6e9f0);
+}
