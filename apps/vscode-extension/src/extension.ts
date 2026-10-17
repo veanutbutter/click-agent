@@ -163,10 +163,17 @@ class ClickViewProvider implements vscode.WebviewViewProvider {
       `script-src ${webview.cspSource}`,
       "connect-src 'none'",
     ].join("; ");
-    return withAssets.replace(
-      "<head>",
-      `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}" />`,
-    );
+
+    // Insert after `<head>` rather than replacing the literal string, so a change
+    // to the built HTML cannot silently drop the policy, and verify it landed.
+    const meta = `<meta http-equiv="Content-Security-Policy" content="${csp}" />`;
+    const withCsp = /<head[^>]*>/i.test(withAssets)
+      ? withAssets.replace(/<head[^>]*>/i, (match) => `${match}\n    ${meta}`)
+      : `${meta}\n${withAssets}`;
+    if (!withCsp.includes("Content-Security-Policy")) {
+      throw new Error("failed to inject the webview content security policy");
+    }
+    return withCsp;
   }
 }
 
