@@ -1,19 +1,24 @@
 # Click
 
-Click is **a stripped Cursor fork** — Cursor's VS Code-based editor with every
-Cursor service removed — plus **a provider-agnostic AI agent** that replaces
-Cursor's cloud. You get the editor you already like, and you point its agent at
-**any** model provider: a hosted API with your own key, a local server, or an
-external coding agent speaking the Agent Client Protocol (ACP).
+Click is **the in-editor AI agent, and the provider layer behind it**. You point
+it at **any** model provider: a hosted API with your own key, a local server, or
+an external coding agent speaking the Agent Client Protocol (ACP). Nothing talks
+to a first-party backend — no account, no proxy, no vendor lock-in. Every
+provider is either an endpoint you supply or a process you launch.
 
-It ships as the Click fork assembled by `cursor-patch/build.ps1`: the editor
-plus a built-in `click-agent` extension. Nothing talks to a first-party
-backend — no account, no proxy, no vendor lock-in. Every provider is either an
-endpoint you supply or a process you launch.
+This repository is the extension (`apps/vscode-extension`) plus the provider
+layer, agent loop, gateway and CLI that it bundles and shares. A provider is
+defined once and appears everywhere.
 
-This workspace (`click/`) is the provider layer and the agent that the fork,
-the CLI and the gateway all run. The same code is bundled into the editor
-extension, so a provider is defined once and appears everywhere.
+The extension's distinguishing feature is **in-file diff review**: when the agent
+edits a file, the change is shown *in the file* — incoming lines tinted, the
+replaced text struck through beside them — and the user keeps or reverts it. That
+review lives in `apps/vscode-extension/src/review.ts` + `reviewModel.ts`, and the
+logic that decides what "revert" means is unit-tested in plain Node.
+
+The patched Cursor fork that can embed this extension as a built-in is a
+**separate project** (`IDE Project\cursor-patch`); it consumes this repository and
+nothing here depends on it.
 
 ---
 
@@ -21,8 +26,8 @@ extension, so a provider is defined once and appears everywhere.
 
 ```bash
 pnpm install
-pnpm test          # 104 tests across 11 files
-pnpm typecheck     # tsc -b, all 11 projects
+pnpm test          # 251 tests across 23 files
+pnpm typecheck     # tsc -b
 ```
 
 Then configure at least one provider and check it can reach the network:
@@ -37,16 +42,25 @@ is unreachable, so it doubles as a CI check.
 
 ---
 
-## Running the editor
+## Running the agent
 
-The editor is the Click fork. Build and launch it from `cursor-patch`:
+The agent is OpenCode over ACP, so it brings its own tool loop, models and MCP
+servers; Click owns the UI.
 
 ```powershell
-..\cursor-patch\build.ps1     # copy + strip Cursor, build + install the agent
-..\cursor-patch\start.ps1     # launch it
+pnpm --filter click-agent build:all        # webview, then the extension host
+pnpm --filter click-agent test:vscode      # tests inside a real VS Code
+
+# launch it in a real VS Code. ELECTRON_RUN_AS_NODE must be cleared first, or
+# Code.exe runs as plain Node and rejects every flag.
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+& "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe" `
+  --extensionDevelopmentPath="$PWD\apps\vscode-extension" "$PWD"
 ```
 
-Inside the fork, the Click activity-bar icon opens the agent panel.
+What the extension did is logged to
+`%APPDATA%\Code\logs\<session>\window1\exthost\click-agent\Click Agent.log`,
+whether or not the Output panel is open.
 
 Two other hosts run the same provider layer:
 
@@ -217,9 +231,9 @@ packages/runtime        Wires registry + provider + agent into one runChat() cal
 packages/bridge         The IPC contract shared by the desktop shell and the UI
 packages/click-cli      The `click` command
 apps/desktop            Electron main + preload (owns the filesystem and the agent)
-apps/vscode-extension   The in-editor agent, bundled into the fork as built-in
+apps/vscode-extension   The product: the in-editor agent and in-file diff review
 apps/gateway            OpenAI-compatible front door for every provider
-apps/web                React + CodeMirror renderer (shared with the extension)
+apps/web                React + CodeMirror renderer (the extension's webview)
 ```
 
 The layering matters, and there is one rule behind it: **the renderer never
@@ -260,8 +274,13 @@ pnpm test           # once
 pnpm test:watch
 ```
 
-104 tests. The suite covers the parts where being wrong is expensive:
+251 tests. The suite covers the parts where being wrong is expensive:
 
+- **In-file diff review** — what "revert" restores, and the race that matters:
+  an ACP agent announces an edit *before* its write lands, so the review is
+  resolved from the reported substitution rather than from the file alone. The
+  extension-host suite (`pnpm --filter click-agent test:vscode`) drives the
+  review layer inside a real VS Code.
 - **Streaming and parsing** — SSE frame splitting across chunk boundaries,
   multi-line `data:`, streamed tool-call fragments reassembled into one call.
 - **Provider request shapes** — asserted against a fake `fetch`, including exact

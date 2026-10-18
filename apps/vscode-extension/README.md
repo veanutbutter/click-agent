@@ -21,8 +21,8 @@ Click extension (VS Code)
 ## The review experience
 
 When the agent edits a file, the change is shown **in the file**: incoming lines
-tinted, the replaced lines shown above them struck through, and a status bar
-item offering to keep or revert.
+tinted, the replaced text struck through beside them, and a status bar item
+offering to keep or revert.
 
 ```
 Click: Keep Edits        accept the review on the active file
@@ -31,10 +31,15 @@ Click: Keep All Edits    accept everything pending
 Click: Revert All Edits  restore every pending file
 ```
 
-Note the ordering: the agent writes first and reports second (OpenCode writes
-directly to disk — verified), so **accept** is a no-op and **revert** restores
-the file through a `WorkspaceEdit`, which means it lands on the normal undo
-stack. That is the same model Cursor uses.
+The agent reports an edit **before** its write reaches disk (OpenCode writes
+directly to disk, and announces the edit first - verified against its ACP
+stream), so the review cannot be built by reading the file and reversing the
+change: at that moment the file still holds the *old* text. `resolveEdit` in
+`reviewModel.ts` treats the reported substitution as the ground truth and uses
+the file only for the text around it, so the before/after pair is correct
+whichever side of that race it lands on. **Accept** is therefore a no-op and
+**revert** restores the file through a `WorkspaceEdit`, which lands on the normal
+undo stack - the same model Cursor uses.
 
 ## Attaching context
 
@@ -77,7 +82,7 @@ Nearest file last, so the closest one wins.
 src/extension.ts     activation, the webview view, commands, Ctrl+L
 src/host.ts          ClickBridge implementation: settings, files, chat, context
 src/review.ts        the inline diff: decorations, keep/revert
-src/reviewModel.ts   diff hunks + reconstructBefore            (pure, tested)
+src/reviewModel.ts   diff hunks + resolveEdit + reconstructBefore  (pure, tested)
 src/context.ts       attached context + prompt formatting      (pure, tested)
 src/testing.ts       test-only entry the extension host loads
 test/vscode/         tests that run inside a real VS Code

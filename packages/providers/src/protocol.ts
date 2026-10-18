@@ -36,8 +36,7 @@ export function defaultProtocolFor(providerId: string): WireProtocol {
 /**
  * Effort levels offered when a model declares reasoning but the registry lists
  * no explicit `reasoning_options`. This is Zed's list, in order, matching the
- * catalogue generator (`cursor-patch/gen-model-catalog.mjs`), so the picker and
- * the wire agree.
+ * fork's model-catalogue generator, so the picker and the wire agree.
  */
 export const DEFAULT_EFFORT_LEVELS: readonly string[] = [
   "minimal",
